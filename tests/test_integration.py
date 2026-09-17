@@ -1639,6 +1639,7 @@ TOOL_COVERAGE = {
     "update_glossary_term_type": "test_glossary_term_type_lifecycle",
     "delete_glossary_term_type": "test_glossary_term_type_lifecycle",
     "import_glossary_terms": "test_glossary_bulk_import",
+    "search_clinical_repository": "test_clinical_repository_search_workflow",
 }
 
 
@@ -2533,3 +2534,42 @@ async def test_glossary_bulk_import(integration_mcp_server):
                 await client.call_tool(
                     "delete_glossary_term_type", {"term_type_id": type_id, "force": True}
                 )
+
+# -----------------------------------------------------------------------
+# Tier 10 — Clinical Acceleration Repository
+# -----------------------------------------------------------------------
+
+
+async def test_clinical_repository_search_workflow(integration_mcp_server):
+    """search_clinical_repository against live Clinical Repository when installed."""
+    async with Client(integration_mcp_server) as client:
+        try:
+            result = (
+                await client.call_tool(
+                    "search_clinical_repository",
+                    {"query": "", "limit": 5},
+                )
+            ).data
+        except Exception as exc:  # noqa: BLE001
+            pytest.skip(f"Clinical Acceleration Repository not available on this Viya: {exc}")
+
+        assert isinstance(result, list)
+        for item in result:
+            assert "id" in item
+            assert "name" in item
+            assert "primaryType" in item
+            assert "path" in item
+
+        if result:
+            sample = result[0]
+            narrowed = (
+                await client.call_tool(
+                    "search_clinical_repository",
+                    {
+                        "query": sample["name"][: max(1, min(3, len(sample["name"])))],
+                        "item_type": sample.get("primaryType") or None,
+                        "limit": 10,
+                    },
+                )
+            ).data
+            assert isinstance(narrowed, list)

@@ -4,7 +4,7 @@ A Model Context Protocol (MCP) server for executing SAS code, training AutoML pr
 
 ## Features
 
-- 92 tools across 10 selectable tiers, spanning the Analytics Life Cycle on SAS Viya
+- 93 tools across 11 selectable tiers, spanning the Analytics Life Cycle on SAS Viya
 - Interactive views (MCP Apps) for data, SAS logs and glossary editing in clients that render them — Claude, ChatGPT, Microsoft 365 Copilot, VS Code, Cursor
 - Prompt Templates for improving your SAS Code
 - OAuth2 authentication with PKCE flow
@@ -158,6 +158,7 @@ Tools are grouped into numbered tiers. By default the server exposes all of them
 | 7 | Decisioning (SAS Intelligent Decisioning) |
 | 8 | Workbench (Execute Code Only) |
 | 9 | Business Glossary (SAS Data Governance) |
+| 10 | Clinical Acceleration (SAS Clinical Acceleration Repository) |
 
 ```sh
 # Example: expose only compute/discovery/data-ops and reporting
@@ -166,7 +167,7 @@ MCP_TIERS=0-3 uv run app
 
 ### Read-only mode
 
-Set `MCP_READ_ONLY=true` to expose only tools that neither change server-side state nor cause server-side work — 51 of the 92 tools. Withheld tools are never registered, so they are absent from the client's tool list entirely: the model cannot see them, so it cannot attempt them.
+Set `MCP_READ_ONLY=true` to expose only tools that neither change server-side state nor cause server-side work — 52 of the 93 tools. Withheld tools are never registered, so they are absent from the client's tool list entirely: the model cannot see them, so it cannot attempt them.
 
 This is a filter over the tiers, not a tier of its own — the read/write split cuts across every tier (Tier 3 has both `get_report` and `delete_report`). The two settings compose:
 
@@ -345,6 +346,12 @@ Two things about the glossary are worth knowing before you start, because both a
 - **create_glossary_term_type** / **update_glossary_term_type** / **delete_glossary_term_type**: Define the template terms are created from — which custom attributes they carry, which are mandatory, and what values each accepts. An edit matches attributes by label and keeps each one's identifier, so terms already carrying a value do not lose it — to *rename* one, give its `attribute_id` alongside the new label, since a new label matches nothing and would otherwise mint a new attribute; delete refuses while terms still use the type
 
 Terms assigned this way also become searchable through Tier 1's **catalog_search** using the `Column.term:"<term name>"` facet on the `datasets` index, which returns the tables carrying a term without resolving individual columns.
+
+#### Tier 10 — Clinical Acceleration (SAS Clinical Acceleration Repository)
+
+Search and navigate the Clinical Acceleration Repository (contexts, folders, and files) via the Clinical Repository REST API.
+
+- **search_clinical_repository**: Search repository items by name (and optionally description), scoped under a `context_path` and/or filtered by `item_type` (`FILE` / `FOLDER` / `CONTEXT`, or a type id such as `sasdataset`)
 
 ### Prompt Templates
 
@@ -567,7 +574,7 @@ tsv, and `file_path`/`data_format` coverage needs no extra deps. Generating a
 `sas7bdat`/`sashdat` fixture requires SAS itself, so those two formats are covered by
 unit-level payload tests only, not live.
 
-Every one of the 92 tools and 9 prompt templates has an integration test, enforced by the
+Every one of the 93 tools and 9 prompt templates has an integration test, enforced by the
 `test_every_tool_has_integration_coverage` / `test_every_prompt_has_integration_coverage`
 guards — adding a new tool or prompt without integration coverage fails the suite. The
 resource-dependent tests discover real targets on the instance: `score_data` scores the most

@@ -110,6 +110,8 @@ READ_ONLY_TOOLS: frozenset[str] = frozenset(
         "get_glossary_term",
         "list_term_assets",
         "list_table_terms",
+        # Tier 10 — Clinical Acceleration
+        "search_clinical_repository",
     }
 )
 

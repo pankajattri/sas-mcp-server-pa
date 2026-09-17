@@ -32,6 +32,7 @@ from ..ui import app_config, register_views
 from ..viya_client import logger
 from . import (
     automl,
+    clinical_accleration,
     compute,
     data_ops,
     decisioning,
@@ -65,6 +66,7 @@ _TIER_REGISTRARS: dict[int, Registrar] = {
     7: decisioning.register,
     8: workbench.register,
     9: glossary.register,
+    10: clinical_accleration.register,
 }
 
 TIER_TITLES: dict[int, str] = {
@@ -78,6 +80,7 @@ TIER_TITLES: dict[int, str] = {
     7: "Decisioning (SAS Intelligent Decisioning)",
     8: "Workbench (Execute Code Only)",
     9: "Business Glossary (SAS Data Governance)",
+    10: "Clinical Acceleration (SAS Clinical Acceleration Repository)",
 }
 
 ALL_TIERS: frozenset[int] = frozenset(_TIER_REGISTRARS)

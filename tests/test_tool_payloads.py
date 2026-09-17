@@ -3600,3 +3600,66 @@ async def test_get_compute_table_data_request(mcp_server_with_mock_client):
     assert result.data["count"] == 19
     assert result.data["truncated"] is True, "5 + 2 rows read of 19"
     assert result.data["column_types"] == {"Name": "char", "Age": "num"}
+
+
+# -----------------------------------------------------------------------
+# Tier 10 — Clinical Acceleration Repository
+# -----------------------------------------------------------------------
+
+
+async def test_search_clinical_repository_request(mcp_server_with_mock_client):
+    mcp, mock_client = mcp_server_with_mock_client
+    mock_client.get.return_value = _make_mock_response(
+        {
+            "items": [
+                {
+                    "id": "item-1",
+                    "name": "ae.sas7bdat",
+                    "primaryType": "FILE",
+                    "typeId": "sasdataset",
+                    "path": "/StudyA/Data/ae.sas7bdat",
+                    "location": "/StudyA/Data",
+                    "size": 1024,
+                    "state": "ACTIVE",
+                    "description": "Adverse events",
+                }
+            ],
+            "count": 1,
+        }
+    )
+    async with Client(mcp) as client:
+        result = await client.call_tool(
+            "search_clinical_repository",
+            {
+                "query": "ae",
+                "context_path": "StudyA/Data",
+                "item_type": "FILE",
+                "limit": 25,
+            },
+        )
+
+    url = mock_client.get.call_args[0][0]
+    assert url.endswith("/clinicalRepository/repository/items")
+    params = mock_client.get.call_args[1]["params"]
+    assert params["limit"] == 25
+    assert params["start"] == 0
+    assert "contains(name,'ae')" in params["filter"]
+    assert "startsWith(path,'/StudyA/Data')" in params["filter"]
+    assert "eq(primaryType,'FILE')" in params["filter"]
+    assert result.data[0]["name"] == "ae.sas7bdat"
+
+
+async def test_search_clinical_repository_search_content_or_description(
+    mcp_server_with_mock_client,
+):
+    mcp, mock_client = mcp_server_with_mock_client
+    mock_client.get.return_value = _make_mock_response({"items": [], "count": 0})
+    async with Client(mcp) as client:
+        await client.call_tool(
+            "search_clinical_repository",
+            {"query": "penicillin", "search_content": True, "item_type": "sasdataset"},
+        )
+
+    params = mock_client.get.call_args[1]["params"]
+    assert "or(contains(name,'penicillin'),contains(description,'penicillin'))" in params["filter"]
+    assert "eq(typeId,'sasdataset')" in params["filter"]

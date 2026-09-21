@@ -3663,3 +3663,141 @@ async def test_search_clinical_repository_search_content_or_description(
     params = mock_client.get.call_args[1]["params"]
     assert "or(contains(name,'penicillin'),contains(description,'penicillin'))" in params["filter"]
     assert "eq(typeId,'sasdataset')" in params["filter"]
+
+
+async def test_get_clinical_item_by_path_request(mcp_server_with_mock_client):
+    mcp, mock_client = mcp_server_with_mock_client
+    mock_client.get.return_value = _make_mock_response(
+        {"id": "abc", "name": "adsl.sas", "path": "/Study/programs/adsl.sas"}
+    )
+    async with Client(mcp) as client:
+        result = await client.call_tool(
+            "get_clinical_item_by_path",
+            {"path": "Study/programs/adsl.sas"},
+        )
+    url = mock_client.get.call_args[0][0]
+    assert url.endswith("/clinicalRepository/repository/paths")
+    assert mock_client.get.call_args[1]["params"]["path"] == "/Study/programs/adsl.sas"
+    assert result.data["id"] == "abc"
+
+
+async def test_checkout_and_checkin_clinical_file_requests(mcp_server_with_mock_client):
+    mcp, mock_client = mcp_server_with_mock_client
+    mock_client.post.return_value = _make_mock_response(
+        {"path": "/Study/programs/adsl.sas", "name": "adsl.sas"}
+    )
+    async with Client(mcp) as client:
+        await client.call_tool(
+            "checkout_clinical_file",
+            {"path": "/Study/programs/adsl.sas"},
+        )
+        await client.call_tool(
+            "checkin_clinical_file",
+            {
+                "path": "/Study/programs/adsl.sas",
+                "file_version": "MINOR",
+                "comment": "QC fixes",
+            },
+        )
+
+    assert mock_client.post.call_count >= 2
+    checkout = mock_client.post.call_args_list[0]
+    checkin = mock_client.post.call_args_list[1]
+    assert checkout[0][0].endswith("/clinicalRepository/workspaces/@currentUser/files")
+    assert checkout[1]["params"]["action"] == "CHECK_OUT"
+    assert checkin[1]["params"]["action"] == "CHECK_IN"
+    assert checkin[1]["params"]["fileVersion"] == "MINOR"
+    assert checkin[1]["params"]["comment"] == "QC fixes"
+
+
+async def test_list_clinical_children_request(mcp_server_with_mock_client):
+    mcp, mock_client = mcp_server_with_mock_client
+    mock_client.get.return_value = _make_mock_response({"items": [], "count": 0})
+    async with Client(mcp) as client:
+        await client.call_tool(
+            "list_clinical_children",
+            {"item_id": "parent-1", "recurse": True, "limit": 10},
+        )
+    url = mock_client.get.call_args[0][0]
+    assert url.endswith("/clinicalRepository/repository/items/parent-1/children")
+    params = mock_client.get.call_args[1]["params"]
+    assert params["recurse"] == "true"
+    assert params["limit"] == 10
+
+
+async def test_list_clinical_groups_and_export_access_model(mcp_server_with_mock_client):
+    mcp, mock_client = mcp_server_with_mock_client
+
+    def _side_effect(url, *args, **kwargs):
+        if url.endswith("/clinicalRepository/groups"):
+            return _make_mock_response(
+                {"items": [{"id": "g1", "name": "Analysts"}], "count": 1}
+            )
+        if "/memberships/" in url and url.endswith("/members"):
+            return _make_mock_response({"items": [], "count": 0})
+        if "/memberships/" in url:
+            return _make_mock_response({"id": "ctx-1", "name": "Study"})
+        if url.endswith("/roles"):
+            return _make_mock_response({"items": [], "count": 0})
+        if "/children" in url:
+            return _make_mock_response({"items": [], "count": 0})
+        if url.endswith("/permissions"):
+            return _make_mock_response({"entries": []})
+        return _make_mock_response({"items": [], "count": 0})
+
+    mock_client.get.side_effect = _side_effect
+
+    async with Client(mcp) as client:
+        groups = await client.call_tool(
+            "list_clinical_groups", {"context_id": "ctx-1", "limit": 20}
+        )
+        assert groups.data[0]["id"] == "g1"
+
+        exported = await client.call_tool(
+            "export_clinical_access_model",
+            {
+                "context_id": "ctx-1",
+                "include_folder_permissions": False,
+            },
+        )
+        assert exported.data["context_id"] == "ctx-1"
+        assert exported.data["groups"][0]["name"] == "Analysts"
+
+        dry = await client.call_tool(
+            "import_clinical_access_model",
+            {
+                "target_context_id": "ctx-2",
+                "model": exported.data,
+                "dry_run": True,
+                "include_folder_permissions": False,
+            },
+        )
+        assert dry.data["status"] == "dry_run"
+
+    group_urls = [c[0][0] for c in mock_client.get.call_args_list]
+    assert any(u.endswith("/clinicalRepository/groups") for u in group_urls)
+
+
+async def test_update_clinical_context_members_request(mcp_server_with_mock_client):
+    mcp, mock_client = mcp_server_with_mock_client
+    get_resp = _make_mock_response({"id": "ctx-1"})
+    get_resp.headers = {"Content-Type": "application/json", "etag": '"v1"'}
+    mock_client.get.return_value = get_resp
+    mock_client.patch.return_value = _make_mock_response({"status": "ok"})
+
+    async with Client(mcp) as client:
+        await client.call_tool(
+            "update_clinical_context_members",
+            {
+                "context_id": "ctx-1",
+                "add_members": [{"id": "user-1", "typeId": "user"}],
+            },
+        )
+
+    assert mock_client.patch.called
+    url = mock_client.patch.call_args[0][0]
+    assert url.endswith("/clinicalRepository/memberships/ctx-1/members")
+    assert mock_client.patch.call_args[1]["params"]["action"] == "UPDATE_MEMBERS"
+    assert mock_client.patch.call_args[1]["headers"]["If-Match"] == '"v1"'
+    body = mock_client.patch.call_args[1]["json"]
+    assert body["addMembers"][0]["id"] == "user-1"

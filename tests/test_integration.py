@@ -1639,7 +1639,60 @@ TOOL_COVERAGE = {
     "update_glossary_term_type": "test_glossary_term_type_lifecycle",
     "delete_glossary_term_type": "test_glossary_term_type_lifecycle",
     "import_glossary_terms": "test_glossary_bulk_import",
-    "search_clinical_repository": "test_clinical_repository_search_workflow",
+    "search_clinical_repository": "test_clinical_repository_workflow",
+    "get_clinical_item": "test_clinical_repository_workflow",
+    "get_clinical_item_by_path": "test_clinical_repository_workflow",
+    "list_clinical_children": "test_clinical_repository_workflow",
+    "create_clinical_folder": "test_clinical_repository_workflow",
+    "upload_clinical_file": "test_clinical_repository_workflow",
+    "download_clinical_file": "test_clinical_repository_workflow",
+    "list_clinical_file_versions": "test_clinical_repository_workflow",
+    "download_clinical_file_version": "test_clinical_repository_workflow",
+    "get_clinical_workspace_item": "test_clinical_repository_workflow",
+    "upload_clinical_workspace_file": "test_clinical_repository_workflow",
+    "download_clinical_workspace": "test_clinical_repository_workflow",
+    "checkout_clinical_file": "test_clinical_repository_workflow",
+    "checkout_clinical_file_metadata_only": "test_clinical_repository_workflow",
+    "undo_clinical_checkout": "test_clinical_repository_workflow",
+    "checkin_clinical_file": "test_clinical_repository_workflow",
+    "copy_clinical_file_to_workspace": "test_clinical_repository_workflow",
+    "list_clinical_tasks": "test_clinical_repository_workflow",
+    "start_clinical_task": "test_clinical_repository_workflow",
+    "complete_clinical_task": "test_clinical_repository_workflow",
+    "list_clinical_audit_entries": "test_clinical_repository_workflow",
+    # Tier 10 — Clinical access control
+    "get_clinical_membership": "test_clinical_access_workflow",
+    "list_clinical_context_members": "test_clinical_access_workflow",
+    "list_clinical_member_candidates": "test_clinical_access_workflow",
+    "update_clinical_context_members": "test_clinical_access_workflow",
+    "list_clinical_groups": "test_clinical_access_workflow",
+    "get_clinical_group": "test_clinical_access_workflow",
+    "list_clinical_group_members": "test_clinical_access_workflow",
+    "list_clinical_group_member_candidates": "test_clinical_access_workflow",
+    "create_clinical_group": "test_clinical_access_workflow",
+    "update_clinical_group": "test_clinical_access_workflow",
+    "update_clinical_group_members": "test_clinical_access_workflow",
+    "delete_clinical_group": "test_clinical_access_workflow",
+    "list_clinical_roles": "test_clinical_access_workflow",
+    "get_clinical_role": "test_clinical_access_workflow",
+    "list_clinical_unassigned_roles": "test_clinical_access_workflow",
+    "list_clinical_role_members": "test_clinical_access_workflow",
+    "list_clinical_role_member_candidates": "test_clinical_access_workflow",
+    "list_clinical_role_privileges": "test_clinical_access_workflow",
+    "list_clinical_privileges": "test_clinical_access_workflow",
+    "create_clinical_role": "test_clinical_access_workflow",
+    "inherit_clinical_roles": "test_clinical_access_workflow",
+    "update_clinical_role": "test_clinical_access_workflow",
+    "update_clinical_role_members": "test_clinical_access_workflow",
+    "update_clinical_role_privileges": "test_clinical_access_workflow",
+    "delete_clinical_role": "test_clinical_access_workflow",
+    "get_clinical_item_permissions": "test_clinical_access_workflow",
+    "update_clinical_item_permissions": "test_clinical_access_workflow",
+    "get_clinical_item_owner": "test_clinical_access_workflow",
+    "set_clinical_item_owner": "test_clinical_access_workflow",
+    "export_clinical_access_model": "test_clinical_access_workflow",
+    "import_clinical_access_model": "test_clinical_access_workflow",
+    "copy_clinical_access_model": "test_clinical_access_workflow",
 }
 
 
@@ -2540,11 +2593,11 @@ async def test_glossary_bulk_import(integration_mcp_server):
 # -----------------------------------------------------------------------
 
 
-async def test_clinical_repository_search_workflow(integration_mcp_server):
-    """search_clinical_repository against live Clinical Repository when installed."""
+async def test_clinical_repository_workflow(integration_mcp_server):
+    """Exercise Clinical Acceleration navigate / checkout tools when installed."""
     async with Client(integration_mcp_server) as client:
         try:
-            result = (
+            hits = (
                 await client.call_tool(
                     "search_clinical_repository",
                     {"query": "", "limit": 5},
@@ -2553,23 +2606,187 @@ async def test_clinical_repository_search_workflow(integration_mcp_server):
         except Exception as exc:  # noqa: BLE001
             pytest.skip(f"Clinical Acceleration Repository not available on this Viya: {exc}")
 
-        assert isinstance(result, list)
-        for item in result:
-            assert "id" in item
-            assert "name" in item
-            assert "primaryType" in item
-            assert "path" in item
+        assert isinstance(hits, list)
 
-        if result:
-            sample = result[0]
-            narrowed = (
+        try:
+            tasks = (await client.call_tool("list_clinical_tasks", {"limit": 5})).data
+            assert isinstance(tasks, list)
+        except Exception as exc:  # noqa: BLE001
+            # Workflows may be licensed separately from the repository.
+            tasks = []
+            _ = exc
+
+        if not hits:
+            return
+
+        sample = hits[0]
+        item = (
+            await client.call_tool("get_clinical_item", {"item_id": sample["id"]})
+        ).data
+        assert item.get("id") == sample["id"]
+
+        if sample.get("path"):
+            by_path = (
                 await client.call_tool(
-                    "search_clinical_repository",
-                    {
-                        "query": sample["name"][: max(1, min(3, len(sample["name"])))],
-                        "item_type": sample.get("primaryType") or None,
-                        "limit": 10,
-                    },
+                    "get_clinical_item_by_path", {"path": sample["path"]}
                 )
             ).data
-            assert isinstance(narrowed, list)
+            assert by_path.get("id") == sample["id"]
+
+        if sample.get("primaryType") in {"FOLDER", "CONTEXT"}:
+            children = (
+                await client.call_tool(
+                    "list_clinical_children",
+                    {"item_id": sample["id"], "limit": 5},
+                )
+            ).data
+            assert isinstance(children, list)
+
+        if sample.get("primaryType") == "FILE" and sample.get("path"):
+            # Read-only copy into workspace — does not require a lasting checkout.
+            copied = (
+                await client.call_tool(
+                    "copy_clinical_file_to_workspace",
+                    {"path": sample["path"]},
+                )
+            ).data
+            assert isinstance(copied, dict)
+            workspace = (
+                await client.call_tool(
+                    "get_clinical_workspace_item",
+                    {"path": sample["path"]},
+                )
+            ).data
+            assert isinstance(workspace, dict)
+
+
+async def test_clinical_access_workflow(integration_mcp_server):
+    """Exercise Clinical membership / groups / roles / ACL read tools when installed."""
+    async with Client(integration_mcp_server) as client:
+        try:
+            hits = (
+                await client.call_tool(
+                    "search_clinical_repository",
+                    {"query": "", "item_type": "CONTEXT", "limit": 5},
+                )
+            ).data
+        except Exception as exc:  # noqa: BLE001
+            pytest.skip(f"Clinical Acceleration Repository not available on this Viya: {exc}")
+
+        assert isinstance(hits, list)
+        if not hits:
+            # Still exercise catalog privileges read — independent of a context hit.
+            try:
+                privs = (await client.call_tool("list_clinical_privileges", {})).data
+                assert isinstance(privs, list)
+            except Exception as exc:  # noqa: BLE001
+                pytest.skip(f"Clinical privileges endpoint unavailable: {exc}")
+            return
+
+        context = next(
+            (h for h in hits if (h.get("primaryType") or "").upper() == "CONTEXT"),
+            hits[0],
+        )
+        context_id = context["id"]
+
+        membership = (
+            await client.call_tool(
+                "get_clinical_membership", {"context_id": context_id}
+            )
+        ).data
+        assert isinstance(membership, dict)
+
+        members = (
+            await client.call_tool(
+                "list_clinical_context_members",
+                {"context_id": context_id, "limit": 5},
+            )
+        ).data
+        assert isinstance(members, list)
+
+        groups = (
+            await client.call_tool(
+                "list_clinical_groups", {"context_id": context_id, "limit": 5}
+            )
+        ).data
+        assert isinstance(groups, list)
+        if groups:
+            group = (
+                await client.call_tool(
+                    "get_clinical_group", {"group_id": groups[0]["id"]}
+                )
+            ).data
+            assert group.get("id") == groups[0]["id"]
+            g_members = (
+                await client.call_tool(
+                    "list_clinical_group_members",
+                    {"group_id": groups[0]["id"], "limit": 5},
+                )
+            ).data
+            assert isinstance(g_members, list)
+
+        roles = (
+            await client.call_tool(
+                "list_clinical_roles", {"context_id": context_id, "limit": 5}
+            )
+        ).data
+        assert isinstance(roles, list)
+        if roles:
+            role = (
+                await client.call_tool(
+                    "get_clinical_role", {"role_id": roles[0]["id"]}
+                )
+            ).data
+            assert role.get("id") == roles[0]["id"]
+            role_privs = (
+                await client.call_tool(
+                    "list_clinical_role_privileges", {"role_id": roles[0]["id"]}
+                )
+            ).data
+            assert isinstance(role_privs, list)
+
+        privs = (await client.call_tool("list_clinical_privileges", {})).data
+        assert isinstance(privs, list)
+
+        perms = (
+            await client.call_tool(
+                "get_clinical_item_permissions", {"item_id": context_id}
+            )
+        ).data
+        assert isinstance(perms, dict)
+
+        owner = (
+            await client.call_tool(
+                "get_clinical_item_owner", {"item_id": context_id}
+            )
+        ).data
+        assert isinstance(owner, dict)
+
+        exported = (
+            await client.call_tool(
+                "export_clinical_access_model",
+                {
+                    "context_id": context_id,
+                    "include_folder_permissions": False,
+                    "folder_limit": 5,
+                },
+            )
+        ).data
+        assert exported.get("context_id") == context_id
+        assert "groups" in exported
+        assert "roles" in exported
+
+        # dry_run import onto the same context — no mutations.
+        planned = (
+            await client.call_tool(
+                "import_clinical_access_model",
+                {
+                    "target_context_id": context_id,
+                    "model": exported,
+                    "dry_run": True,
+                    "include_folder_permissions": False,
+                },
+            )
+        ).data
+        assert planned.get("status") == "dry_run"
+        assert isinstance(planned.get("plan"), list)

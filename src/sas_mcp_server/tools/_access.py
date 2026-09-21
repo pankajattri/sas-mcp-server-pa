@@ -112,6 +112,34 @@ READ_ONLY_TOOLS: frozenset[str] = frozenset(
         "list_table_terms",
         # Tier 10 — Clinical Acceleration
         "search_clinical_repository",
+        "get_clinical_item",
+        "get_clinical_item_by_path",
+        "list_clinical_children",
+        "list_clinical_file_versions",
+        "download_clinical_file",
+        "download_clinical_file_version",
+        "get_clinical_workspace_item",
+        "download_clinical_workspace",
+        "list_clinical_tasks",
+        "list_clinical_audit_entries",
+        # Tier 10 — Clinical access control (membership / groups / roles / ACLs)
+        "get_clinical_membership",
+        "list_clinical_context_members",
+        "list_clinical_member_candidates",
+        "list_clinical_groups",
+        "get_clinical_group",
+        "list_clinical_group_members",
+        "list_clinical_group_member_candidates",
+        "list_clinical_roles",
+        "get_clinical_role",
+        "list_clinical_unassigned_roles",
+        "list_clinical_role_members",
+        "list_clinical_role_member_candidates",
+        "list_clinical_role_privileges",
+        "list_clinical_privileges",
+        "get_clinical_item_permissions",
+        "get_clinical_item_owner",
+        "export_clinical_access_model",
     }
 )
 
@@ -180,6 +208,33 @@ WRITE_TOOLS: frozenset[str] = frozenset(
         # Creates/removes a catalog relationship between a term and a column.
         "assign_glossary_term",
         "unassign_glossary_term",
+        # Tier 10 — Clinical Acceleration
+        "create_clinical_folder",
+        "upload_clinical_file",
+        "upload_clinical_workspace_file",
+        "checkout_clinical_file",
+        "checkout_clinical_file_metadata_only",
+        "undo_clinical_checkout",
+        "checkin_clinical_file",
+        "copy_clinical_file_to_workspace",
+        "start_clinical_task",
+        "complete_clinical_task",
+        # Tier 10 — Clinical access control writes
+        "update_clinical_context_members",
+        "create_clinical_group",
+        "update_clinical_group",
+        "update_clinical_group_members",
+        "delete_clinical_group",
+        "create_clinical_role",
+        "inherit_clinical_roles",
+        "update_clinical_role",
+        "update_clinical_role_members",
+        "update_clinical_role_privileges",
+        "delete_clinical_role",
+        "update_clinical_item_permissions",
+        "set_clinical_item_owner",
+        "import_clinical_access_model",
+        "copy_clinical_access_model",
     }
 )
 
@@ -221,6 +276,21 @@ DESTRUCTIVE_TOOLS: frozenset[str] = frozenset(
         "update_glossary_term_type",
         # update_existing=true overwrites a term already at that path.
         "import_glossary_terms",
+        # Tier 10 — overwrites repository / workspace content or locks files.
+        "upload_clinical_file",
+        "upload_clinical_workspace_file",
+        "checkin_clinical_file",
+        "copy_clinical_file_to_workspace",
+        "checkout_clinical_file",
+        "delete_clinical_group",
+        "delete_clinical_role",
+        "update_clinical_context_members",
+        "update_clinical_group_members",
+        "update_clinical_role_members",
+        "update_clinical_role_privileges",
+        "update_clinical_item_permissions",
+        "import_clinical_access_model",
+        "copy_clinical_access_model",
     }
 )
 
@@ -249,6 +319,12 @@ IDEMPOTENT_WRITE_TOOLS: frozenset[str] = frozenset(
         # creating a duplicate or failing on an absent one.
         "assign_glossary_term",
         "unassign_glossary_term",
+        # Tier 10 — Clinical access PUTs / deletes of already-gone resources.
+        "update_clinical_group",
+        "update_clinical_role",
+        "delete_clinical_group",
+        "delete_clinical_role",
+        "set_clinical_item_owner",
     }
 )
 

@@ -4,7 +4,7 @@ A Model Context Protocol (MCP) server for executing SAS code, training AutoML pr
 
 ## Features
 
-- 93 tools across 11 selectable tiers, spanning the Analytics Life Cycle on SAS Viya
+- 145 tools across 11 selectable tiers, spanning the Analytics Life Cycle on SAS Viya
 - Interactive views (MCP Apps) for data, SAS logs and glossary editing in clients that render them — Claude, ChatGPT, Microsoft 365 Copilot, VS Code, Cursor
 - Prompt Templates for improving your SAS Code
 - OAuth2 authentication with PKCE flow
@@ -167,7 +167,7 @@ MCP_TIERS=0-3 uv run app
 
 ### Read-only mode
 
-Set `MCP_READ_ONLY=true` to expose only tools that neither change server-side state nor cause server-side work — 52 of the 93 tools. Withheld tools are never registered, so they are absent from the client's tool list entirely: the model cannot see them, so it cannot attempt them.
+Set `MCP_READ_ONLY=true` to expose only tools that neither change server-side state nor cause server-side work — 79 of the 145 tools. Withheld tools are never registered, so they are absent from the client's tool list entirely: the model cannot see them, so it cannot attempt them.
 
 This is a filter over the tiers, not a tier of its own — the read/write split cuts across every tier (Tier 3 has both `get_report` and `delete_report`). The two settings compose:
 
@@ -349,9 +349,36 @@ Terms assigned this way also become searchable through Tier 1's **catalog_search
 
 #### Tier 10 — Clinical Acceleration (SAS Clinical Acceleration Repository)
 
-Search and navigate the Clinical Acceleration Repository (contexts, folders, and files) via the Clinical Repository REST API.
+Search, navigate, version, check in/out, and govern clinical trial repository content.
 
-- **search_clinical_repository**: Search repository items by name (and optionally description), scoped under a `context_path` and/or filtered by `item_type` (`FILE` / `FOLDER` / `CONTEXT`, or a type id such as `sasdataset`)
+*Navigate:*
+- **search_clinical_repository** / **get_clinical_item** / **get_clinical_item_by_path** / **list_clinical_children**
+
+*Structure & content:*
+- **create_clinical_folder** — create a folder or context under a parent
+- **upload_clinical_file** / **download_clinical_file** — put/get repository content
+- **list_clinical_file_versions** / **download_clinical_file_version** — version history
+
+*Workspace & check-in/out (clinical trial edit loop):*
+- **get_clinical_workspace_item** / **upload_clinical_workspace_file** / **download_clinical_workspace**
+- **checkout_clinical_file** / **checkout_clinical_file_metadata_only** / **undo_clinical_checkout**
+- **checkin_clinical_file** / **copy_clinical_file_to_workspace**
+
+*Process & evidence:*
+- **list_clinical_tasks** / **start_clinical_task** / **complete_clinical_task**
+- **list_clinical_audit_entries**
+
+*Access control (membership / groups / roles / folder ACLs):*
+- **get_clinical_membership** / **list_clinical_context_members** / **list_clinical_member_candidates** / **update_clinical_context_members**
+- **list_clinical_groups** / **get_clinical_group** / **create_clinical_group** / **update_clinical_group** / **delete_clinical_group**
+- **list_clinical_group_members** / **list_clinical_group_member_candidates** / **update_clinical_group_members**
+- **list_clinical_roles** / **get_clinical_role** / **list_clinical_unassigned_roles** / **create_clinical_role** / **inherit_clinical_roles** / **update_clinical_role** / **delete_clinical_role**
+- **list_clinical_role_members** / **list_clinical_role_member_candidates** / **update_clinical_role_members**
+- **list_clinical_role_privileges** / **list_clinical_privileges** / **update_clinical_role_privileges**
+- **get_clinical_item_permissions** / **update_clinical_item_permissions** / **get_clinical_item_owner** / **set_clinical_item_owner**
+- **export_clinical_access_model** / **import_clinical_access_model** / **copy_clinical_access_model** — snapshot and rematch by name across contexts
+
+Use existing Tier 0 **execute_sas_code** (or Tier 4 batch jobs) to run programs after checkout.
 
 ### Prompt Templates
 
@@ -574,7 +601,7 @@ tsv, and `file_path`/`data_format` coverage needs no extra deps. Generating a
 `sas7bdat`/`sashdat` fixture requires SAS itself, so those two formats are covered by
 unit-level payload tests only, not live.
 
-Every one of the 93 tools and 9 prompt templates has an integration test, enforced by the
+Every one of the 145 tools and 9 prompt templates has an integration test, enforced by the
 `test_every_tool_has_integration_coverage` / `test_every_prompt_has_integration_coverage`
 guards — adding a new tool or prompt without integration coverage fails the suite. The
 resource-dependent tests discover real targets on the instance: `score_data` scores the most

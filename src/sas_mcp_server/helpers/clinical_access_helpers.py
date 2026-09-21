@@ -94,6 +94,110 @@ async def patch_json_with_etag(
     return resp.json()
 
 
+async def post_with_json_content_type(
+    client: httpx.AsyncClient,
+    url: str,
+    *,
+    params: dict[str, Any] | None = None,
+    body: Any = None,
+) -> dict[str, Any]:
+    """POST with ``Content-Type: application/json`` (required by Clinical Repository)."""
+    resp = await client.post(
+        f"{VIYA_ENDPOINT}{url}",
+        params=params or {},
+        json={} if body is None else body,
+        headers={"Accept": "application/json", "Content-Type": "application/json"},
+    )
+    raise_for_viya_status(resp)
+    if not resp.content:
+        return {"status": "ok"}
+    return resp.json()
+
+
+def _principal_key(principal: dict[str, Any]) -> tuple[str, str]:
+    return (str(principal.get("id") or ""), str(principal.get("typeId") or "").lower())
+
+
+def partition_permission_entries(
+    desired: list[dict[str, Any]],
+    existing_entries: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Split desired ACL entries into additions vs updates based on existing principals."""
+    existing_keys = {
+        _principal_key(e.get("principal") or {})
+        for e in existing_entries
+        if (e.get("principal") or {}).get("id")
+    }
+    additions: list[dict[str, Any]] = []
+    updates: list[dict[str, Any]] = []
+    for entry in desired:
+        principal = entry.get("principal") or {}
+        key = _principal_key(principal)
+        if not key[0]:
+            continue
+        if key in existing_keys:
+            updates.append(entry)
+        else:
+            additions.append(entry)
+    return additions, updates
+
+
+async def patch_item_permissions(
+    client: httpx.AsyncClient,
+    item_id: str,
+    *,
+    additions: list[dict[str, Any]] | None = None,
+    updates: list[dict[str, Any]] | None = None,
+    removals: list[dict[str, Any]] | None = None,
+    current: bool = True,
+    auto_partition_additions: bool = True,
+) -> dict[str, Any]:
+    """PATCH item permissions, routing already-present principals to ``updates``."""
+    params = {"current": str(current).lower()}
+    add_list = list(additions or [])
+    update_list = list(updates or [])
+    remove_list = normalize_principals(removals) if removals else []
+
+    if auto_partition_additions and add_list:
+        existing = await get_json(
+            f"{_ITEMS}/{item_id}/permissions", client, params=params
+        )
+        existing_entries = existing.get("entries") or []
+        split_add, split_upd = partition_permission_entries(add_list, existing_entries)
+        add_list = split_add
+        # Prefer explicit updates first, then auto-routed ones (dedupe by principal).
+        seen = {_principal_key(e.get("principal") or {}) for e in update_list}
+        for entry in split_upd:
+            key = _principal_key(entry.get("principal") or {})
+            if key not in seen:
+                update_list.append(entry)
+                seen.add(key)
+
+    body: dict[str, Any] = {"version": 1}
+    if add_list:
+        body["additions"] = add_list
+    if update_list:
+        body["updates"] = update_list
+    if remove_list:
+        body["removals"] = remove_list
+    if len(body) == 1:
+        return {"status": "ok", "item_id": item_id, "note": "nothing to apply"}
+
+    resp = await client.patch(
+        f"{VIYA_ENDPOINT}{_ITEMS}/{item_id}/permissions",
+        params=params,
+        json=body,
+        headers={
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        },
+    )
+    raise_for_viya_status(resp)
+    if not resp.content:
+        return {"status": "ok", "item_id": item_id}
+    return resp.json()
+
+
 async def list_collection(
     client: httpx.AsyncClient,
     url: str,
@@ -284,8 +388,9 @@ async def import_access_model(
             else:
                 plan.append(f"create group '{name}'")
                 if not dry_run:
-                    resp = await client.post(
-                        f"{VIYA_ENDPOINT}{_GROUPS}",
+                    created = await post_with_json_content_type(
+                        client,
+                        _GROUPS,
                         params={
                             "contextId": target_context_id,
                             "name": name,
@@ -295,10 +400,7 @@ async def import_access_model(
                                 else {}
                             ),
                         },
-                        headers={"Accept": "application/json"},
                     )
-                    raise_for_viya_status(resp)
-                    created = resp.json() if resp.content else {}
                     gid = created.get("id", "")
                     group_id_by_name[name] = gid
                     results["created_groups"][name] = gid
@@ -340,13 +442,9 @@ async def import_access_model(
                     }
                     if role.get("description"):
                         params["description"] = role["description"]
-                    resp = await client.post(
-                        f"{VIYA_ENDPOINT}{_ROLES}",
-                        params=params,
-                        headers={"Accept": "application/json"},
+                    created = await post_with_json_content_type(
+                        client, _ROLES, params=params
                     )
-                    raise_for_viya_status(resp)
-                    created = resp.json() if resp.content else {}
                     rid = created.get("id", "")
                     role_id_by_name[name] = rid
                     results["created_roles"][name] = rid
@@ -368,13 +466,23 @@ async def import_access_model(
             if rid and privilege_ids:
                 plan.append(f"set {len(privilege_ids)} privilege(s) on role '{name}'")
                 if not dry_run:
-                    await patch_json_with_etag(
-                        client,
-                        resource_url=f"{_ROLES}/{rid}",
-                        patch_url=f"{_ROLES}/{rid}/privileges",
-                        body={"version": 1, "addPrivileges": privilege_ids},
-                    )
-                    results["applied"].append(f"role_privileges:{name}")
+                    current_privs = await get_json(f"{_ROLES}/{rid}/privileges", client)
+                    existing_ids = {
+                        p.get("id")
+                        for p in (current_privs.get("items") or [])
+                        if p.get("id")
+                    }
+                    to_add = [pid for pid in privilege_ids if pid not in existing_ids]
+                    if to_add:
+                        await patch_json_with_etag(
+                            client,
+                            resource_url=f"{_ROLES}/{rid}",
+                            patch_url=f"{_ROLES}/{rid}/privileges",
+                            body={"version": 1, "addPrivileges": to_add},
+                        )
+                        results["applied"].append(f"role_privileges:{name}")
+                    else:
+                        plan.append(f"privileges already present on role '{name}'")
 
     # --- context membership ---------------------------------------------------
     if include_membership:
@@ -476,16 +584,12 @@ async def import_access_model(
                 continue
             plan.append(f"apply {len(additions)} permission entr(y/ies) on '{rel or '/'}'")
             if not dry_run:
-                resp = await client.patch(
-                    f"{VIYA_ENDPOINT}{_ITEMS}/{target_id}/permissions",
-                    params={"current": "true"},
-                    json={"version": 1, "additions": additions},
-                    headers={
-                        "Accept": "application/json",
-                        "Content-Type": "application/vnd.sas.clinical.permissions.update+json",
-                    },
+                await patch_item_permissions(
+                    client,
+                    target_id,
+                    additions=additions,
+                    current=True,
                 )
-                raise_for_viya_status(resp)
                 results["applied"].append(f"permissions:{rel or '/'}")
 
     results["plan"] = plan

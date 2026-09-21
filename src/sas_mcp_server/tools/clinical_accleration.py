@@ -949,13 +949,12 @@ def register(mcp: FastMCP, get_token: Callable[[Context], Awaitable[str]]) -> No
         if description:
             params["description"] = description
         async with viya_session("create_clinical_group", ctx) as client:
-            resp = await client.post(
-                f"{VIYA_ENDPOINT}{_GROUPS}",
-                params=params,
-                headers={"Accept": "application/json"},
+            created = await access.post_with_json_content_type(
+                client, _GROUPS, params=params
             )
-            raise_for_viya_status(resp)
-            return resp.json() if resp.content else {"status": "created", "name": name}
+            if created.get("status") == "ok" and "id" not in created:
+                return {"status": "created", "name": name}
+            return created
 
     @mcp.tool()
     async def update_clinical_group(
@@ -1169,13 +1168,12 @@ def register(mcp: FastMCP, get_token: Callable[[Context], Awaitable[str]]) -> No
         if description:
             params["description"] = description
         async with viya_session("create_clinical_role", ctx) as client:
-            resp = await client.post(
-                f"{VIYA_ENDPOINT}{_ROLES}",
-                params=params,
-                headers={"Accept": "application/json"},
+            created = await access.post_with_json_content_type(
+                client, _ROLES, params=params
             )
-            raise_for_viya_status(resp)
-            return resp.json() if resp.content else {"status": "created", "name": name}
+            if created.get("status") == "ok" and "id" not in created:
+                return {"status": "created", "name": name}
+            return created
 
     @mcp.tool()
     async def inherit_clinical_roles(
@@ -1281,7 +1279,7 @@ def register(mcp: FastMCP, get_token: Callable[[Context], Awaitable[str]]) -> No
                 resource_url=f"{_ROLES}/{role_id}",
                 patch_url=f"{_ROLES}/{role_id}/privileges",
                 body=body,
-                content_type="application/vnd.sas.clinical.privileges.update+json",
+                content_type="application/json",
             )
 
     @mcp.tool()
@@ -1334,31 +1332,23 @@ def register(mcp: FastMCP, get_token: Callable[[Context], Awaitable[str]]) -> No
         Args:
             item_id: Item UUID.
             additions: Permission entries to add (principal + read/write/delete/admin).
+                Principals that already exist on the ACL are automatically routed to
+                ``updates`` so re-applying the same principal does not fail.
             updates: Existing entries to update.
             removals: Principals to remove (``{id, typeId}``).
             current: Update current permissions (default true).
         """
-        body: dict[str, Any] = {"version": 1}
-        if additions:
-            body["additions"] = additions
-        if updates:
-            body["updates"] = updates
-        if removals:
-            body["removals"] = access.normalize_principals(removals)
-        if len(body) == 1:
+        if not additions and not updates and not removals:
             raise ValueError("provide at least one of additions, updates, or removals")
         async with viya_session("update_clinical_item_permissions", ctx) as client:
-            resp = await client.patch(
-                f"{VIYA_ENDPOINT}{_REPO_ITEMS}/{item_id}/permissions",
-                params={"current": str(current).lower()},
-                json=body,
-                headers={
-                    "Accept": "application/json",
-                    "Content-Type": "application/vnd.sas.clinical.permissions.update+json",
-                },
+            return await access.patch_item_permissions(
+                client,
+                item_id,
+                additions=additions,
+                updates=updates,
+                removals=removals,
+                current=current,
             )
-            raise_for_viya_status(resp)
-            return resp.json() if resp.content else {"status": "ok", "item_id": item_id}
 
     @mcp.tool()
     async def get_clinical_item_owner(

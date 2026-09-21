@@ -3801,3 +3801,96 @@ async def test_update_clinical_context_members_request(mcp_server_with_mock_clie
     assert mock_client.patch.call_args[1]["headers"]["If-Match"] == '"v1"'
     body = mock_client.patch.call_args[1]["json"]
     assert body["addMembers"][0]["id"] == "user-1"
+
+
+async def test_create_clinical_group_sends_json_content_type(mcp_server_with_mock_client):
+    mcp, mock_client = mcp_server_with_mock_client
+    mock_client.post.return_value = _make_mock_response(
+        {"id": "g-new", "name": "QC"}
+    )
+
+    async with Client(mcp) as client:
+        result = await client.call_tool(
+            "create_clinical_group",
+            {"context_id": "ctx-1", "name": "QC", "description": "QC team"},
+        )
+
+    assert result.data["id"] == "g-new"
+    assert mock_client.post.called
+    assert mock_client.post.call_args[0][0].endswith("/clinicalRepository/groups")
+    assert mock_client.post.call_args[1]["json"] == {}
+    assert mock_client.post.call_args[1]["headers"]["Content-Type"] == "application/json"
+    assert mock_client.post.call_args[1]["params"]["name"] == "QC"
+
+
+async def test_update_clinical_role_privileges_uses_application_json(
+    mcp_server_with_mock_client,
+):
+    mcp, mock_client = mcp_server_with_mock_client
+    get_resp = _make_mock_response({"id": "role-1"})
+    get_resp.headers = {"Content-Type": "application/json", "etag": '"v2"'}
+    mock_client.get.return_value = get_resp
+    mock_client.patch.return_value = _make_mock_response({"status": "ok"})
+
+    async with Client(mcp) as client:
+        await client.call_tool(
+            "update_clinical_role_privileges",
+            {
+                "role_id": "role-1",
+                "add_privileges": ["PRIVILEGE_MANAGE_MEMBERSHIP"],
+            },
+        )
+
+    headers = mock_client.patch.call_args[1]["headers"]
+    assert headers["Content-Type"] == "application/json"
+    assert mock_client.patch.call_args[0][0].endswith(
+        "/clinicalRepository/roles/role-1/privileges"
+    )
+
+
+async def test_update_clinical_item_permissions_routes_existing_to_updates(
+    mcp_server_with_mock_client,
+):
+    mcp, mock_client = mcp_server_with_mock_client
+    mock_client.get.return_value = _make_mock_response(
+        {
+            "entries": [
+                {
+                    "principal": {"id": "user-1", "typeId": "user"},
+                    "readPermission": "GRANT",
+                }
+            ]
+        }
+    )
+    mock_client.patch.return_value = _make_mock_response({"status": "ok"})
+
+    async with Client(mcp) as client:
+        await client.call_tool(
+            "update_clinical_item_permissions",
+            {
+                "item_id": "item-1",
+                "additions": [
+                    {
+                        "principal": {"id": "user-1", "typeId": "user"},
+                        "readPermission": "GRANT",
+                        "writePermission": "GRANT",
+                        "deletePermission": "UNSET",
+                        "adminPermission": "UNSET",
+                    },
+                    {
+                        "principal": {"id": "user-2", "typeId": "user"},
+                        "readPermission": "GRANT",
+                        "writePermission": "UNSET",
+                        "deletePermission": "UNSET",
+                        "adminPermission": "UNSET",
+                    },
+                ],
+            },
+        )
+
+    body = mock_client.patch.call_args[1]["json"]
+    assert mock_client.patch.call_args[1]["headers"]["Content-Type"] == "application/json"
+    assert len(body["updates"]) == 1
+    assert body["updates"][0]["principal"]["id"] == "user-1"
+    assert len(body["additions"]) == 1
+    assert body["additions"][0]["principal"]["id"] == "user-2"

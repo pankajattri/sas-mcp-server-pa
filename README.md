@@ -355,7 +355,7 @@ Search, navigate, version, check in/out, and govern clinical trial repository co
 - **search_clinical_repository** / **get_clinical_item** / **get_clinical_item_by_path** / **list_clinical_children**
 
 *Structure & content:*
-- **create_clinical_folder** — create a folder or context under a parent
+- **create_clinical_folder** — create a folder or context under a parent; use ``parent_item_id="1"`` with ``item_type=CONTEXT`` for a top-level repository context
 - **upload_clinical_file** / **download_clinical_file** — put/get repository content
 - **list_clinical_file_versions** / **download_clinical_file_version** — version history
 

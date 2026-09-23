@@ -3894,3 +3894,56 @@ async def test_update_clinical_item_permissions_routes_existing_to_updates(
     assert body["updates"][0]["principal"]["id"] == "user-1"
     assert len(body["additions"]) == 1
     assert body["additions"][0]["principal"]["id"] == "user-2"
+
+
+async def test_create_clinical_context_at_repository_root(mcp_server_with_mock_client):
+    mcp, mock_client = mcp_server_with_mock_client
+    mock_client.post.return_value = _make_mock_response(
+        {"id": "ctx-new", "name": "PaintDrugStudy_PA1", "primaryType": "CONTEXT"}
+    )
+
+    async with Client(mcp) as client:
+        result = await client.call_tool(
+            "create_clinical_folder",
+            {
+                "parent_item_id": "1",
+                "name": "PaintDrugStudy_PA1",
+                "item_type": "CONTEXT",
+                "type_id": "organization",
+            },
+        )
+
+    assert result.data["id"] == "ctx-new"
+    assert mock_client.post.call_args[0][0].endswith(
+        "/clinicalRepository/repository/items/1/children"
+    )
+    params = mock_client.post.call_args[1]["params"]
+    assert params["name"] == "PaintDrugStudy_PA1"
+    assert params["type"] == "CONTEXT"
+    assert params["typeId"] == "organization"
+    headers = mock_client.post.call_args[1]["headers"]
+    assert headers["Content-Type"] == "application/json"
+    assert headers["X-SAS-Clinical-Authorization"] == "ADMIN"
+    assert "application/vnd.sas.clinical.repository.container" in headers["Accept"]
+    assert mock_client.post.call_args[1]["json"] == {}
+
+
+async def test_create_clinical_folder_omits_admin_header(mcp_server_with_mock_client):
+    mcp, mock_client = mcp_server_with_mock_client
+    mock_client.post.return_value = _make_mock_response(
+        {"id": "f1", "name": "programs", "primaryType": "FOLDER"}
+    )
+
+    async with Client(mcp) as client:
+        await client.call_tool(
+            "create_clinical_folder",
+            {
+                "parent_item_id": "parent-1",
+                "name": "programs",
+                "item_type": "FOLDER",
+            },
+        )
+
+    headers = mock_client.post.call_args[1]["headers"]
+    assert "X-SAS-Clinical-Authorization" not in headers
+    assert mock_client.post.call_args[1]["params"]["type"] == "FOLDER"

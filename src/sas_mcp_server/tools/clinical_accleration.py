@@ -317,13 +317,15 @@ def register(mcp: FastMCP, get_token: Callable[[Context], Awaitable[str]]) -> No
         description: str | None = None,
         owner: str | None = None,
     ) -> dict[str, Any]:
-        """Create a folder or context under a Clinical Repository parent.
+        """Create a folder or context in the Clinical Repository.
 
         Args:
-            parent_item_id: Parent container UUID.
+            parent_item_id: Parent container UUID, or ``\"1\"`` to create a
+                top-level repository context under the membership root.
             name: Name of the new item.
             item_type: ``FOLDER`` (default) or ``CONTEXT``.
-            type_id: Required when creating a ``CONTEXT`` (e.g. ``project``).
+            type_id: Required when creating a ``CONTEXT`` (e.g. ``organization``,
+                ``project``).
             description: Optional description.
             owner: Optional owner user id (contexts only).
         """
@@ -339,11 +341,19 @@ def register(mcp: FastMCP, get_token: Callable[[Context], Awaitable[str]]) -> No
             params["description"] = description
         if owner:
             params["owner"] = owner
+        headers: dict[str, str] = {
+            "Accept": "application/json, application/vnd.sas.clinical.repository.container",
+            "Content-Type": "application/json",
+        }
+        # Top-level (and nested) context creation requires clinical admin auth.
+        if primary == "CONTEXT":
+            headers["X-SAS-Clinical-Authorization"] = "ADMIN"
         async with viya_session("create_clinical_folder", ctx) as client:
             resp = await client.post(
                 f"{VIYA_ENDPOINT}{_REPO_ITEMS}/{parent_item_id}/children",
                 params=params,
-                headers={"Accept": "application/json"},
+                json={},
+                headers=headers,
             )
             raise_for_viya_status(resp)
             return resp.json() if resp.content else {"status": "created", "name": name}

@@ -3710,6 +3710,72 @@ async def test_checkout_and_checkin_clinical_file_requests(mcp_server_with_mock_
     assert checkin[1]["params"]["comment"] == "QC fixes"
 
 
+def _path_not_specified_response(method: str, url_path: str):
+    """Mock a Viya 400 that says the path query parameter was not specified."""
+    body = '{"message": "The query parameter path is not specified."}'
+    resp = _make_mock_response(
+        {"message": "The query parameter path is not specified."},
+        status_code=400,
+        text=body,
+    )
+    request = MagicMock()
+    request.method = method
+    request.url.path = url_path
+    resp.raise_for_status = MagicMock(
+        side_effect=httpx.HTTPStatusError("bad", request=request, response=resp)
+    )
+    return resp
+
+
+async def test_checkout_retries_path_in_url_when_query_path_rejected(
+    mcp_server_with_mock_client,
+):
+    mcp, mock_client = mcp_server_with_mock_client
+    rejected = _path_not_specified_response(
+        "POST", "/clinicalRepository/workspaces/@currentUser/files"
+    )
+    ok = _make_mock_response({"path": "/Study/programs/adsl.sas", "name": "adsl.sas"})
+    mock_client.post.side_effect = [rejected, ok]
+
+    async with Client(mcp) as client:
+        result = await client.call_tool(
+            "checkout_clinical_file",
+            {"path": "/Study/programs/adsl.sas"},
+        )
+
+    assert result.data["name"] == "adsl.sas"
+    first, second = mock_client.post.call_args_list
+    assert first[0][0].endswith("/clinicalRepository/workspaces/@currentUser/files")
+    assert first[1]["params"]["path"] == "/Study/programs/adsl.sas"
+    assert second[0][0].endswith(
+        "/clinicalRepository/workspaces/@currentUser/files/Study/programs/adsl.sas"
+    )
+    assert "path" not in (second[1]["params"] or {})
+    assert second[1]["params"]["action"] == "CHECK_OUT"
+
+
+async def test_get_workspace_item_retries_path_in_url(mcp_server_with_mock_client):
+    mcp, mock_client = mcp_server_with_mock_client
+    rejected = _path_not_specified_response(
+        "GET", "/clinicalRepository/workspaces/@currentUser/items"
+    )
+    ok = _make_mock_response({"id": "ws-1", "path": "/Study/programs/adsl.sas"})
+    mock_client.get.side_effect = [rejected, ok]
+
+    async with Client(mcp) as client:
+        result = await client.call_tool(
+            "get_clinical_workspace_item",
+            {"path": "/Study/programs/adsl.sas"},
+        )
+
+    assert result.data["id"] == "ws-1"
+    second = mock_client.get.call_args_list[1]
+    assert second[0][0].endswith(
+        "/clinicalRepository/workspaces/@currentUser/items/Study/programs/adsl.sas"
+    )
+    assert second[1]["params"] is None
+
+
 async def test_list_clinical_children_request(mcp_server_with_mock_client):
     mcp, mock_client = mcp_server_with_mock_client
     mock_client.get.return_value = _make_mock_response({"items": [], "count": 0})

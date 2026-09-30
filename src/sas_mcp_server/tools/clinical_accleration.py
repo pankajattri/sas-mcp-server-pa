@@ -92,6 +92,66 @@ def _normalize_path(path: str) -> str:
     return cleaned
 
 
+def _path_query_unrecognized(exc: httpx.HTTPStatusError) -> bool:
+    """True when Viya rejected a ``path`` query parameter as missing or unknown."""
+    text = str(exc).lower()
+    if "path" not in text:
+        return False
+    return any(
+        marker in text
+        for marker in (
+            "not specified",
+            "not provided",
+            "not recognized",
+            "is required",
+            "must be specified",
+            "was not specified",
+        )
+    )
+
+
+def _url_with_path(base: str, path: str) -> str:
+    """Append a repository path onto a workspace collection URL."""
+    normalized = _normalize_path(path)
+    if not normalized.startswith("/"):
+        normalized = f"/{normalized}"
+    return f"{base}{normalized}"
+
+
+async def _request_workspace_path(
+    send,
+    *,
+    base: str,
+    path: str,
+    params: dict[str, Any] | None = None,
+    **kwargs: Any,
+) -> httpx.Response:
+    """Call a workspace endpoint, falling back from a ``path`` query to a URL path.
+
+    Some Clinical Repository builds do not bind ``path`` when it is a query
+    parameter and report that path was not specified. The same call is then
+    repeated with the path appended to the URL and omitted from the query string.
+    """
+    normalized = _normalize_path(path)
+    query = dict(params or {})
+    query["path"] = normalized
+    resp = await send(f"{VIYA_ENDPOINT}{base}", params=query, **kwargs)
+    try:
+        raise_for_viya_status(resp)
+        return resp
+    except httpx.HTTPStatusError as exc:
+        if not _path_query_unrecognized(exc):
+            raise
+    retry_params = {key: value for key, value in query.items() if key != "path"}
+    resp = await send(
+        f"{VIYA_ENDPOINT}{_url_with_path(base, normalized)}",
+        params=retry_params or None,
+        **kwargs,
+    )
+    raise_for_viya_status(resp)
+    return resp
+
+
 def _item_type_clause(item_type: str) -> str:
     raw = item_type.strip()
     upper = raw.upper()
@@ -176,24 +236,26 @@ async def _workspace_file_action(
     file_version: str | None = None,
     comment: str | None = None,
 ) -> dict[str, Any]:
-    params: dict[str, Any] = {"path": _normalize_path(path), "action": action}
+    params: dict[str, Any] = {"action": action}
+    normalized = _normalize_path(path)
     if file_version:
         params["fileVersion"] = file_version
     if comment:
         params["comment"] = comment
-    resp = await client.post(
-        f"{VIYA_ENDPOINT}{_WORKSPACE_FILES}",
+    resp = await _request_workspace_path(
+        client.post,
+        base=_WORKSPACE_FILES,
+        path=normalized,
         params=params,
         headers={"Accept": "application/json"},
     )
-    raise_for_viya_status(resp)
     if not resp.content:
-        return {"status": "ok", "action": action, "path": params["path"]}
+        return {"status": "ok", "action": action, "path": normalized}
     data = resp.json()
     if isinstance(data, dict):
         data.setdefault("action", action)
         return data
-    return {"status": "ok", "action": action, "path": params["path"], "result": data}
+    return {"status": "ok", "action": action, "path": normalized, "result": data}
 
 
 def register(mcp: FastMCP, get_token: Callable[[Context], Awaitable[str]]) -> None:
@@ -500,11 +562,13 @@ def register(mcp: FastMCP, get_token: Callable[[Context], Awaitable[str]]) -> No
             path: Full workspace path.
         """
         async with viya_session("get_clinical_workspace_item", ctx) as client:
-            return await get_json(
-                _WORKSPACE_ITEMS,
-                client,
-                params={"path": _normalize_path(path)},
+            resp = await _request_workspace_path(
+                client.get,
+                base=_WORKSPACE_ITEMS,
+                path=path,
+                headers={"Accept": "application/json"},
             )
+            return resp.json()
 
     @mcp.tool()
     async def upload_clinical_workspace_file(
@@ -525,21 +589,23 @@ def register(mcp: FastMCP, get_token: Callable[[Context], Awaitable[str]]) -> No
             expand: Expand a ZIP when ``path`` is a folder.
         """
         file_bytes = _resolve_upload_bytes(content, content_base64)
-        name = file_name or _normalize_path(path).rsplit("/", 1)[-1] or "upload.bin"
-        params: dict[str, Any] = {"path": _normalize_path(path)}
+        normalized = _normalize_path(path)
+        name = file_name or normalized.rsplit("/", 1)[-1] or "upload.bin"
+        params: dict[str, Any] = {}
         if expand:
             params["expand"] = "true"
         async with viya_session("upload_clinical_workspace_file", ctx) as client:
-            resp = await client.put(
-                f"{VIYA_ENDPOINT}{_WORKSPACE_ITEMS}",
+            resp = await _request_workspace_path(
+                client.put,
+                base=_WORKSPACE_ITEMS,
+                path=normalized,
                 params=params,
                 files={"file": (name, file_bytes, "application/octet-stream")},
                 data={"filename": name},
                 headers={"Accept": "application/json"},
             )
-            raise_for_viya_status(resp)
             if not resp.content:
-                return {"status": "ok", "path": params["path"], "file_name": name}
+                return {"status": "ok", "path": normalized, "file_name": name}
             return resp.json()
 
     @mcp.tool()

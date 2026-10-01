@@ -1,4 +1,4 @@
-# SAS Viya MCP Server
+# SAS Viya MCP Server with Clinical Accelration (CA) tools
 
 A Model Context Protocol (MCP) server for executing SAS code, training AutoML projects, scoring models and so much more for SAS Viya environments.
 
@@ -9,10 +9,11 @@ https://github.com/user-attachments/assets/1ad3dc95-8baa-4f74-b487-9c92ff9709fa
 
 Step 2: Set up and Run Local MCP Server
 ```bash
-Commands used in the video:..
+Commands used in the video:
 
 mkdir "<path>"
 cd "<path>"
+cd sas-mcp-server-pa
 git clone -b sas-mcp-with-ca-tools https://github.com/pankajattri/sas-mcp-server-pa.git
 SETX VIYA_ENDPOINT "https://myviya4.sas-hls-lts-06-centralus.unx.sas.com"
 SETX CLIENT_ID "sas-mcp-ca"
@@ -26,7 +27,7 @@ https://github.com/user-attachments/assets/3ff30eb2-acc1-404e-924b-af281e98700c
 Step 3: Connect MCP Server to Claude..
 ```bash
 Commands used in the video:
-..
+
 "mcpServers": {
     
     "lts06-mcp-local": {

@@ -2,16 +2,34 @@
 
 A Model Context Protocol (MCP) server for executing SAS code, training AutoML projects, scoring models and so much more for SAS Viya environments.
 
-## Getting started
-How to: Install Claude
+## Set up Claude and connect to SAS Viya MCP server
+Step 1: Install Claude
 
 https://github.com/user-attachments/assets/1ad3dc95-8baa-4f74-b487-9c92ff9709fa
 
-How to: Set up and Run Local MCP Server
+Step 2: Set up and Run Local MCP Server
 
 https://github.com/user-attachments/assets/3ff30eb2-acc1-404e-924b-af281e98700c
 
-How to: Connect MCP Server to Claude
+Step 3: Connect MCP Server to Claude
+
+https://github.com/user-attachments/assets/ef43869d-c967-4191-a69e-2201f9796e83
+
+## Use CA tools
+Use Case 1: List Clinical Acceleration tools 
+
+https://github.com/user-attachments/assets/6691db70-a488-4b60-be4f-c137ff27dcfe
+
+Use Case 2: Investigate Studies/Repositories, Folder Content, and Permissions.
+
+https://github.com/user-attachments/assets/ee757f2a-3c9d-42d5-80d7-27f262b6480c
+
+Use Case 3: Create a new Repository and replicate folders and permissions from an existing repository
+
+https://github.com/user-attachments/assets/aaeb3489-452f-45fd-9eb3-0a442d7aac32
+
+Use Case 4:
+
 
 
 ## Features

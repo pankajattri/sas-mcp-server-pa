@@ -2,6 +2,18 @@
 
 A Model Context Protocol (MCP) server for executing SAS code, training AutoML projects, scoring models and so much more for SAS Viya environments.
 
+## Getting started
+How to: Install Claude
+
+https://github.com/user-attachments/assets/1ad3dc95-8baa-4f74-b487-9c92ff9709fa
+
+How to: Set up and Run Local MCP Server
+
+https://github.com/user-attachments/assets/3ff30eb2-acc1-404e-924b-af281e98700c
+
+How to: Connect MCP Server to Claude
+
+
 ## Features
 
 - 145 tools across 11 selectable tiers, spanning the Analytics Life Cycle on SAS Viya

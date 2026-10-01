@@ -2324,6 +2324,44 @@ async def test_execute_sas_code_default_keeps_session(mcp_server_with_mock_clien
         mock_reset.assert_not_awaited()
 
 
+async def test_execute_clinical_sas_code_rejects_unprefixed_paths(mcp_server_with_mock_client):
+    mcp, _ = mcp_server_with_mock_client
+    code = "libname adam '/Study/adam'; filename prog 'Study/programs/adsl.sas';"
+    with patch("sas_mcp_server.tools.clinical_accleration.run_one_snippet") as mock_run:
+        async with Client(mcp) as client:
+            with pytest.raises(Exception) as excinfo:
+                await client.call_tool(
+                    "execute_clinical_sas_code",
+                    {"sas_code": code},
+                )
+        mock_run.assert_not_called()
+    text = str(excinfo.value)
+    assert "/clinical/workspaces/Study/adam" in text
+    assert "/Study/adam" in text
+
+
+async def test_execute_clinical_sas_code_runs_prefixed_paths(mcp_server_with_mock_client):
+    mcp, _ = mcp_server_with_mock_client
+    code = (
+        'libname adam "/clinical/workspaces/Study/adam";\n'
+        '%include "/clinical/workspaces/Study/programs/adsl.sas";\n'
+    )
+    with patch("sas_mcp_server.tools.clinical_accleration.run_one_snippet") as mock_run:
+        mock_run.return_value = {
+            "snippet_id": "1",
+            "state": "completed",
+            "log": "LOG",
+            "listing": "",
+        }
+        async with Client(mcp) as client:
+            result = await client.call_tool(
+                "execute_clinical_sas_code",
+                {"sas_code": code},
+            )
+        mock_run.assert_called_once_with(code, "1", "test-token")
+        assert result.data["state"] == "completed"
+
+
 # -----------------------------------------------------------------------
 # Error / edge-path coverage
 # -----------------------------------------------------------------------

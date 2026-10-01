@@ -217,6 +217,7 @@ WRITE_TOOLS: frozenset[str] = frozenset(
         "undo_clinical_checkout",
         "checkin_clinical_file",
         "copy_clinical_file_to_workspace",
+        "execute_clinical_sas_code",
         "start_clinical_task",
         "complete_clinical_task",
         # Tier 10 — Clinical access control writes
@@ -250,6 +251,7 @@ WRITE_TOOLS: frozenset[str] = frozenset(
 DESTRUCTIVE_TOOLS: frozenset[str] = frozenset(
     {
         "execute_sas_code",  # arbitrary code
+        "execute_clinical_sas_code",  # arbitrary code against the clinical workspace
         "submit_batch_job",  # arbitrary code
         "reset_compute_session",  # destroys the caller's session
         "cancel_job",  # kills a running job
@@ -334,6 +336,7 @@ IDEMPOTENT_WRITE_TOOLS: frozenset[str] = frozenset(
 OPEN_WORLD_TOOLS: frozenset[str] = frozenset(
     {
         "execute_sas_code",
+        "execute_clinical_sas_code",
         "submit_batch_job",
         "upload_data",
         "upload_file",

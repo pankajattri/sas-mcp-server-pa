@@ -4,7 +4,7 @@ A Model Context Protocol (MCP) server for executing SAS code, training AutoML pr
 
 ## Features
 
-- 145 tools across 11 selectable tiers, spanning the Analytics Life Cycle on SAS Viya
+- 146 tools across 11 selectable tiers, spanning the Analytics Life Cycle on SAS Viya
 - Interactive views (MCP Apps) for data, SAS logs and glossary editing in clients that render them — Claude, ChatGPT, Microsoft 365 Copilot, VS Code, Cursor
 - Prompt Templates for improving your SAS Code
 - OAuth2 authentication with PKCE flow
@@ -167,7 +167,7 @@ MCP_TIERS=0-3 uv run app
 
 ### Read-only mode
 
-Set `MCP_READ_ONLY=true` to expose only tools that neither change server-side state nor cause server-side work — 79 of the 145 tools. Withheld tools are never registered, so they are absent from the client's tool list entirely: the model cannot see them, so it cannot attempt them.
+Set `MCP_READ_ONLY=true` to expose only tools that neither change server-side state nor cause server-side work — 79 of the 146 tools. Withheld tools are never registered, so they are absent from the client's tool list entirely: the model cannot see them, so it cannot attempt them.
 
 This is a filter over the tiers, not a tier of its own — the read/write split cuts across every tier (Tier 3 has both `get_report` and `delete_report`). The two settings compose:
 
@@ -378,7 +378,7 @@ Search, navigate, version, check in/out, and govern clinical trial repository co
 - **get_clinical_item_permissions** / **update_clinical_item_permissions** / **get_clinical_item_owner** / **set_clinical_item_owner**
 - **export_clinical_access_model** / **import_clinical_access_model** / **copy_clinical_access_model** — snapshot and rematch by name across contexts
 
-Use existing Tier 0 **execute_sas_code** (or Tier 4 batch jobs) to run programs after checkout.
+Use **execute_clinical_sas_code** to run programs after checkout. Workspace tools keep returning workspace-relative paths; this tool rejects SAS `libname`, `filename`, `infile`, `file=`, `datafile=`, and `%include` paths that do not begin with `/clinical/workspaces` (for example `/Study/adam` must be written as `/clinical/workspaces/Study/adam`) so the code is revised before it runs. Tier 0 **execute_sas_code** remains for non-clinical code.
 
 ### Prompt Templates
 
@@ -601,7 +601,7 @@ tsv, and `file_path`/`data_format` coverage needs no extra deps. Generating a
 `sas7bdat`/`sashdat` fixture requires SAS itself, so those two formats are covered by
 unit-level payload tests only, not live.
 
-Every one of the 145 tools and 9 prompt templates has an integration test, enforced by the
+Every one of the 146 tools and 9 prompt templates has an integration test, enforced by the
 `test_every_tool_has_integration_coverage` / `test_every_prompt_has_integration_coverage`
 guards — adding a new tool or prompt without integration coverage fails the suite. The
 resource-dependent tests discover real targets on the instance: `score_data` scores the most

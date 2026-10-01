@@ -46,7 +46,7 @@ def test_hint_sets_are_subsets_of_the_write_side():
 
 
 def test_arbitrary_code_tools_are_destructive_and_open_world():
-    for name in ("execute_sas_code", "submit_batch_job"):
+    for name in ("execute_sas_code", "execute_clinical_sas_code", "submit_batch_job"):
         assert name in DESTRUCTIVE_TOOLS
         assert name in OPEN_WORLD_TOOLS
         assert name not in IDEMPOTENT_WRITE_TOOLS

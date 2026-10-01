@@ -1660,6 +1660,7 @@ TOOL_COVERAGE = {
     "start_clinical_task": "test_clinical_repository_workflow",
     "complete_clinical_task": "test_clinical_repository_workflow",
     "list_clinical_audit_entries": "test_clinical_repository_workflow",
+    "execute_clinical_sas_code": "test_clinical_repository_workflow",
     # Tier 10 — Clinical access control
     "get_clinical_membership": "test_clinical_access_workflow",
     "list_clinical_context_members": "test_clinical_access_workflow",

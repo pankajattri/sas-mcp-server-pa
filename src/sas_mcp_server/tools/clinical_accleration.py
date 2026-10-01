@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import base64
+import re
 from collections.abc import Awaitable, Callable
 from typing import Annotated, Any
 
@@ -13,16 +14,19 @@ import httpx
 from fastmcp import Context, FastMCP
 from pydantic import BeforeValidator
 
-from ..config import MAX_EXPORT_INLINE_BYTES, VIYA_ENDPOINT
+from ..config import COMPUTE_SESSION_ID, CONTEXT_NAME, MAX_EXPORT_INLINE_BYTES, VIYA_ENDPOINT
 from ..helpers import clinical_access_helpers as access
 from ..viya_client import (
     filter_literal,
     get_json,
     get_paged_items,
+    logger,
+    make_client,
     post_json,
     raise_for_viya_status,
     return_items,
 )
+from ..viya_utils import reset_cached_session, run_one_snippet
 from ._common import coerce_json_dict, coerce_json_list, make_session_helpers
 
 PrincipalList = Annotated[list[dict[str, Any]], BeforeValidator(coerce_json_list)]
@@ -41,6 +45,23 @@ _AUDIT_ENTRIES = f"{_REPO}/audit/entries"
 _MEMBERSHIPS = f"{_REPO}/memberships"
 _GROUPS = f"{_REPO}/groups"
 _ROLES = f"{_REPO}/roles"
+_CLINICAL_FS_ROOT = "/clinical/workspaces"
+
+# libname/filename assignments and the file-path options SAS programs use
+# after a Clinical checkout. The path is the next quoted string.
+_CLINICAL_PATH_STMT = re.compile(
+    r"""(?ix)
+    (?:
+        \b(?:libname|filename)\s+\w+\s+
+        | \b(?:infile|file|datafile)\s*=\s*
+        | \binfile\s+
+        | (?<!\w)%include\s+
+    )
+    (?P<q>['"])
+    (?P<path>[^'"]*)
+    (?P=q)
+    """
+)
 
 _PRINCIPAL_FIELDS = ["id", "typeId", "name", "displayName"]
 _GROUP_FIELDS = ["id", "name", "description", "displayName"]
@@ -90,6 +111,37 @@ def _normalize_path(path: str) -> str:
     if cleaned != "/" and cleaned.endswith("/"):
         cleaned = cleaned.rstrip("/")
     return cleaned
+
+
+def _clinical_path_violations(sas_code: str) -> list[str]:
+    """Quoted filesystem paths that are not under ``/clinical/workspaces``."""
+    root = _CLINICAL_FS_ROOT
+    bad: list[str] = []
+    seen: set[str] = set()
+    for match in _CLINICAL_PATH_STMT.finditer(sas_code):
+        path = match.group("path").strip()
+        if not path or path == root or path.startswith(root + "/"):
+            continue
+        if path not in seen:
+            seen.add(path)
+            bad.append(path)
+    return bad
+
+
+def _require_clinical_paths(sas_code: str) -> None:
+    """Refuse to run until the caller revises paths onto the clinical mount."""
+    bad = _clinical_path_violations(sas_code)
+    if not bad:
+        return
+    shown = ", ".join(repr(path) for path in bad[:8])
+    extra = "" if len(bad) <= 8 else f" (+{len(bad) - 8} more)"
+    raise ValueError(
+        "Revise the SAS code and call execute_clinical_sas_code again. "
+        "Every libname, filename, infile, file=, datafile=, and %include path "
+        f"must begin with '{_CLINICAL_FS_ROOT}'. A workspace-relative path such "
+        f"as '/Study/adam' or 'Study/adam' must be written as "
+        f"'{_CLINICAL_FS_ROOT}/Study/adam'. Offending path(s): {shown}{extra}"
+    )
 
 
 def _path_query_unrecognized(exc: httpx.HTTPStatusError) -> bool:
@@ -730,6 +782,51 @@ def register(mcp: FastMCP, get_token: Callable[[Context], Awaitable[str]]) -> No
                 action=action,
                 file_version=file_version,
             )
+
+    # --- run programs --------------------------------------------------------
+
+    @mcp.tool()
+    async def execute_clinical_sas_code(
+        sas_code: str,
+        ctx: Context,
+        fresh_session: bool = False,
+    ) -> dict[str, str]:
+        """Run SAS against the Clinical Acceleration workspace filesystem.
+
+        Use this tool, not ``execute_sas_code``, whenever the program reads or
+        writes Clinical workspace files. Checkout, copy, and workspace tools
+        return workspace-relative paths (for example ``/Study/programs/adsl.sas``).
+        Rewrite those paths before calling this tool: SAS sees the same file at
+        ``/clinical/workspaces`` plus that path.
+
+        Required form:
+
+        ```sas
+        libname adam "/clinical/workspaces/Study/adam";
+        filename prog "/clinical/workspaces/Study/programs/adsl.sas";
+        %include "/clinical/workspaces/Study/programs/adsl.sas";
+        ```
+
+        A ``libname``, ``filename``, ``infile``, ``file=``, ``datafile=``, or
+        ``%include`` path that does not begin with ``/clinical/workspaces`` is
+        rejected. Revise the program and call this tool again. Librefs with no
+        path (``libname casuser cas;``) are unchanged.
+
+        Runs in the same reusable compute session as ``execute_sas_code``. Pass
+        ``fresh_session=True`` when the program must not inherit WORK tables,
+        macro variables, or librefs from an earlier call.
+
+        Args:
+            sas_code: SAS program to execute. Revise paths first.
+            fresh_session: Discard the cached compute session before running.
+        """
+        _require_clinical_paths(sas_code)
+        logger.info("--- TOOL USED: execute_clinical_sas_code ---")
+        token = await get_token(ctx)
+        if fresh_session and not COMPUTE_SESSION_ID:
+            async with make_client(token) as client:
+                await reset_cached_session(client, CONTEXT_NAME, token)
+        return await run_one_snippet(sas_code, "1", token)
 
     # --- workflow tasks + audit ----------------------------------------------
 

@@ -8,33 +8,33 @@ Step 1: Install Claude
 https://github.com/user-attachments/assets/1ad3dc95-8baa-4f74-b487-9c92ff9709fa
 
 Step 2: Set up and Run Local MCP Server,
-Commands used in the video:
+Commands used in the video:..
 
-mkdir "<path>"
-cd "<path>"
-git clone -b sas-mcp-with-ca-tools https://github.com/pankajattri/sas-mcp-server-pa.git
-SETX VIYA_ENDPOINT "https://myviya4.sas-hls-lts-06-centralus.unx.sas.com"
-SETX CLIENT_ID "sas-mcp-ca"
-SETX HOST_PORT 8134
-SETX SSL_VERIFY false
-uv sync
-uv run app
+mkdir "<path>"..
+cd "<path>"..
+git clone -b sas-mcp-with-ca-tools https://github.com/pankajattri/sas-mcp-server-pa.git..
+SETX VIYA_ENDPOINT "https://myviya4.sas-hls-lts-06-centralus.unx.sas.com"..
+SETX CLIENT_ID "sas-mcp-ca"..
+SETX HOST_PORT 8134..
+SETX SSL_VERIFY false..
+uv sync..
+uv run app..
 
 https://github.com/user-attachments/assets/3ff30eb2-acc1-404e-924b-af281e98700c
 
-Step 3: Connect MCP Server to Claude
-Commands used in the video:
-
-"mcpServers": {
-    
-    "lts06-mcp-local": {
-      "command": "npx",
-      "args": [
-        "mcp-remote",
-        "http://localhost:8134/mcp"
-      ]
-    }
-  },
+Step 3: Connect MCP Server to Claude..
+Commands used in the video:..
+..
+"mcpServers": {..
+    ..
+    "lts06-mcp-local": {..
+      "command": "npx",..
+      "args": [..
+        "mcp-remote",..
+        "http://localhost:8134/mcp"..
+      ]..
+    }..
+  },..
   
 https://github.com/user-attachments/assets/ef43869d-c967-4191-a69e-2201f9796e83
 

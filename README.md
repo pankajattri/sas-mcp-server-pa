@@ -7,16 +7,44 @@ Step 1: Install Claude
 
 https://github.com/user-attachments/assets/1ad3dc95-8baa-4f74-b487-9c92ff9709fa
 
-Step 2: Set up and Run Local MCP Server
+Step 2: Set up and Run Local MCP Server,
+Commands used in the video:
+
+mkdir "<path>"
+cd "<path>"
+git clone -b sas-mcp-with-ca-tools https://github.com/pankajattri/sas-mcp-server-pa.git
+SETX VIYA_ENDPOINT "https://myviya4.sas-hls-lts-06-centralus.unx.sas.com"
+SETX CLIENT_ID "sas-mcp-ca"
+SETX HOST_PORT 8134
+SETX SSL_VERIFY false
+uv sync
+uv run app
 
 https://github.com/user-attachments/assets/3ff30eb2-acc1-404e-924b-af281e98700c
 
 Step 3: Connect MCP Server to Claude
+Commands used in the video:
 
+"mcpServers": {
+    
+    "lts06-mcp-local": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "http://localhost:8134/mcp"
+      ]
+    }
+  },
+  
 https://github.com/user-attachments/assets/ef43869d-c967-4191-a69e-2201f9796e83
 
+Step 4: Configure Claude API Key (Optional, if you have access to Claude models hosted in Azure Foundry, Amazon Bedrock etc.)
+
+https://github.com/user-attachments/assets/f812c0f4-91f3-47c9-b1e5-36d7779ac179
+
+
 ## Use CA tools
-Use Case 1: List Clinical Acceleration tools 
+Use Case 1: List available Clinical Acceleration tools on the MCP server
 
 https://github.com/user-attachments/assets/6691db70-a488-4b60-be4f-c137ff27dcfe
 
@@ -28,7 +56,9 @@ Use Case 3: Create a new Repository and replicate folders and permissions from a
 
 https://github.com/user-attachments/assets/aaeb3489-452f-45fd-9eb3-0a442d7aac32
 
-Use Case 4:
+Use Case 4: Checkout files to workspace, generate new SAS code and/or datasets, and check-in new files.
+
+https://github.com/user-attachments/assets/3ff14ea1-e453-4155-8577-83b88149adf5
 
 
 

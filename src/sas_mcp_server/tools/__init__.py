@@ -41,6 +41,7 @@ from . import (
     jobs,
     model_scoring,
     reports,
+    rwd_omop_tools,
     workbench,
 )
 from ._access import (
@@ -67,6 +68,7 @@ _TIER_REGISTRARS: dict[int, Registrar] = {
     8: workbench.register,
     9: glossary.register,
     10: clinical_accleration.register,
+    11: rwd_omop_tools.register,
 }
 
 TIER_TITLES: dict[int, str] = {
@@ -81,6 +83,7 @@ TIER_TITLES: dict[int, str] = {
     8: "Workbench (Execute Code Only)",
     9: "Business Glossary (SAS Data Governance)",
     10: "Clinical Acceleration (SAS Clinical Acceleration Repository)",
+    11: "RWD / OMOP Concept Matching",
 }
 
 ALL_TIERS: frozenset[int] = frozenset(_TIER_REGISTRARS)

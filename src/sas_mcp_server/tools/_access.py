@@ -140,6 +140,8 @@ READ_ONLY_TOOLS: frozenset[str] = frozenset(
         "get_clinical_item_permissions",
         "get_clinical_item_owner",
         "export_clinical_access_model",
+        # Tier 11 — RWD / OMOP (local schema validation only)
+        "validate_omop_mapping",
     }
 )
 
@@ -236,6 +238,9 @@ WRITE_TOOLS: frozenset[str] = frozenset(
         "set_clinical_item_owner",
         "import_clinical_access_model",
         "copy_clinical_access_model",
+        # Tier 11 — RWD / OMOP jobs (run SAS jobs / write mapping artifacts)
+        "perform_standard_concept_match",
+        "get_alternate_concepts_for_unmatched_terms",
     }
 )
 
@@ -293,6 +298,9 @@ DESTRUCTIVE_TOOLS: frozenset[str] = frozenset(
         "update_clinical_item_permissions",
         "import_clinical_access_model",
         "copy_clinical_access_model",
+        # Tier 11 — adhoc SAS + job execution can overwrite outputs.
+        "perform_standard_concept_match",
+        "get_alternate_concepts_for_unmatched_terms",
     }
 )
 

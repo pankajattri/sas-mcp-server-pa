@@ -33,7 +33,7 @@ def test_resolve_range_list_and_csv():
     assert tools.resolve_enabled_tiers([2, 3]) == {2, 3}
 
 
-@pytest.mark.parametrize("bad", ["0-99", "11", "abc", [42]])
+@pytest.mark.parametrize("bad", ["0-99", "12", "abc", [42]])
 def test_resolve_rejects_unknown_tiers(bad):
     with pytest.raises(ConfigError):
         tools.resolve_enabled_tiers(bad)
@@ -48,7 +48,7 @@ def test_env_var_drives_default(monkeypatch):
 
 async def test_register_all_tiers_registers_everything():
     names = await _register(None)
-    assert len(names) == 146
+    assert len(names) == 149
     assert "execute_sas_code" in names
     assert "publish_decision_flow" in names
     assert "apply_report_operations" in names
@@ -59,6 +59,9 @@ async def test_register_all_tiers_registers_everything():
     assert "export_clinical_access_model" in names
     assert "copy_clinical_access_model" in names
     assert "execute_clinical_sas_code" in names
+    assert "perform_standard_concept_match" in names
+    assert "get_alternate_concepts_for_unmatched_terms" in names
+    assert "validate_omop_mapping" in names
 
 
 async def test_register_subset_excludes_other_tiers():

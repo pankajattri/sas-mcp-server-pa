@@ -34,7 +34,7 @@ Use Case 4:
 
 ## Features
 
-- 146 tools across 11 selectable tiers, spanning the Analytics Life Cycle on SAS Viya
+- 149 tools across 12 selectable tiers, spanning the Analytics Life Cycle on SAS Viya
 - Interactive views (MCP Apps) for data, SAS logs and glossary editing in clients that render them — Claude, ChatGPT, Microsoft 365 Copilot, VS Code, Cursor
 - Prompt Templates for improving your SAS Code
 - OAuth2 authentication with PKCE flow
@@ -189,6 +189,7 @@ Tools are grouped into numbered tiers. By default the server exposes all of them
 | 8 | Workbench (Execute Code Only) |
 | 9 | Business Glossary (SAS Data Governance) |
 | 10 | Clinical Acceleration (SAS Clinical Acceleration Repository) |
+| 11 | RWD / OMOP Concept Matching |
 
 ```sh
 # Example: expose only compute/discovery/data-ops and reporting
@@ -197,7 +198,7 @@ MCP_TIERS=0-3 uv run app
 
 ### Read-only mode
 
-Set `MCP_READ_ONLY=true` to expose only tools that neither change server-side state nor cause server-side work — 79 of the 146 tools. Withheld tools are never registered, so they are absent from the client's tool list entirely: the model cannot see them, so it cannot attempt them.
+Set `MCP_READ_ONLY=true` to expose only tools that neither change server-side state nor cause server-side work — 80 of the 149 tools. Withheld tools are never registered, so they are absent from the client's tool list entirely: the model cannot see them, so it cannot attempt them.
 
 This is a filter over the tiers, not a tier of its own — the read/write split cuts across every tier (Tier 3 has both `get_report` and `delete_report`). The two settings compose:
 
@@ -409,6 +410,14 @@ Search, navigate, version, check in/out, and govern clinical trial repository co
 - **export_clinical_access_model** / **import_clinical_access_model** / **copy_clinical_access_model** — snapshot and rematch by name across contexts
 
 Use **execute_clinical_sas_code** to run programs after checkout. Workspace tools keep returning workspace-relative paths; this tool rejects SAS `libname`, `filename`, `infile`, `file=`, `datafile=`, and `%include` paths that do not begin with `/clinical/workspaces` (for example `/Study/adam` must be written as `/clinical/workspaces/Study/adam`) so the code is revised before it runs. Tier 0 **execute_sas_code** remains for non-clinical code.
+
+#### Tier 11 — RWD / OMOP Concept Matching
+
+Map raw RWD codes and text to standard OMOP concepts via configured Viya Job Execution definitions. Uses the same MCP auth as every other tier (`get_token`); configure job IDs with env vars such as `RUN_ADHOC_CODE_JOB_ID`, `GET_TABLE_AND_COLUMN_DETAILS_JOB_ID`, and `GET_ALTERNATE_CONCEPTS_JOB_ID`.
+
+- **perform_standard_concept_match** — run adhoc SAS/SQL that writes mapping files, then fetch table/column details JSON
+- **get_alternate_concepts_for_unmatched_terms** — resolve unmatched terms with alternate search strings
+- **validate_omop_mapping** — check proposed OMOP field mappings against a local `tables.json` schema (optional LLM batch when `OPENAI_API_KEY` is set)
 
 ### Prompt Templates
 
@@ -631,7 +640,7 @@ tsv, and `file_path`/`data_format` coverage needs no extra deps. Generating a
 `sas7bdat`/`sashdat` fixture requires SAS itself, so those two formats are covered by
 unit-level payload tests only, not live.
 
-Every one of the 146 tools and 9 prompt templates has an integration test, enforced by the
+Every one of the 149 tools and 9 prompt templates has an integration test, enforced by the
 `test_every_tool_has_integration_coverage` / `test_every_prompt_has_integration_coverage`
 guards — adding a new tool or prompt without integration coverage fails the suite. The
 resource-dependent tests discover real targets on the instance: `score_data` scores the most

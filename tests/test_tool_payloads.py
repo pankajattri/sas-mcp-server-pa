@@ -2362,6 +2362,40 @@ async def test_execute_clinical_sas_code_runs_prefixed_paths(mcp_server_with_moc
         assert result.data["state"] == "completed"
 
 
+async def test_validate_omop_mapping_missing_schema(mcp_server_with_mock_client):
+    mcp, _ = mcp_server_with_mock_client
+    async with Client(mcp) as client:
+        result = await client.call_tool(
+            "validate_omop_mapping",
+            {
+                "table_name": "CONDITION_OCCURRENCE",
+                "proposed_mappings": [],
+            },
+        )
+    assert "error" in result.data
+    assert "tables.json" in result.data["error"] or "OMOP schema" in result.data["error"]
+
+
+async def test_perform_standard_concept_match_requires_job_config(
+    mcp_server_with_mock_client, monkeypatch
+):
+    monkeypatch.setattr(
+        "sas_mcp_server.tools.rwd_omop_tools.RUN_ADHOC_CODE_JOB_ID", ""
+    )
+    mcp, _ = mcp_server_with_mock_client
+    async with Client(mcp) as client:
+        result = await client.call_tool(
+            "perform_standard_concept_match",
+            {
+                "sql_code": "data _null_; run;",
+                "names_of_files_generated": ["out.json"],
+                "data_dir_path": "/tmp",
+            },
+        )
+    assert isinstance(result.data, dict)
+    assert "error" in result.data or "RUN_ADHOC_CODE_JOB_ID" in str(result.data)
+
+
 # -----------------------------------------------------------------------
 # Error / edge-path coverage
 # -----------------------------------------------------------------------

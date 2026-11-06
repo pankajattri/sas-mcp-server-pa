@@ -1694,6 +1694,10 @@ TOOL_COVERAGE = {
     "export_clinical_access_model": "test_clinical_access_workflow",
     "import_clinical_access_model": "test_clinical_access_workflow",
     "copy_clinical_access_model": "test_clinical_access_workflow",
+    # Tier 11 — RWD / OMOP
+    "perform_standard_concept_match": "test_rwd_omop_workflow",
+    "get_alternate_concepts_for_unmatched_terms": "test_rwd_omop_workflow",
+    "validate_omop_mapping": "test_rwd_omop_workflow",
 }
 
 
@@ -2791,3 +2795,44 @@ async def test_clinical_access_workflow(integration_mcp_server):
         ).data
         assert planned.get("status") == "dry_run"
         assert isinstance(planned.get("plan"), list)
+
+
+async def test_rwd_omop_workflow(integration_mcp_server):
+    """Exercise Tier 11 RWD/OMOP tools (config errors are acceptable without job IDs)."""
+    async with Client(integration_mcp_server) as client:
+        missing = (
+            await client.call_tool(
+                "validate_omop_mapping",
+                {
+                    "table_name": "CONDITION_OCCURRENCE",
+                    "proposed_mappings": [],
+                },
+            )
+        ).data
+        assert isinstance(missing, dict)
+        assert "error" in missing or "table" in missing
+
+        match = (
+            await client.call_tool(
+                "perform_standard_concept_match",
+                {
+                    "sql_code": "data _null_; run;",
+                    "names_of_files_generated": ["out.json"],
+                    "data_dir_path": "/tmp",
+                },
+            )
+        ).data
+        assert isinstance(match, dict)
+
+        alts = (
+            await client.call_tool(
+                "get_alternate_concepts_for_unmatched_terms",
+                {
+                    "search_terms": {"glucose": ["blood sugar"]},
+                    "target_table_domain": "Measurement",
+                    "out_dir": "/tmp",
+                    "table_name": "LAB",
+                },
+            )
+        ).data
+        assert isinstance(alts, dict)

@@ -1,4 +1,4 @@
-# SAS Viya MCP Server with Clinical Accelration (CA) tools
+# SAS Viya MCP Server with Clinical Acceleration (CA) tools
 
 A Model Context Protocol (MCP) server for executing SAS code, training AutoML projects, scoring models and so much more for SAS Viya environments.
 
